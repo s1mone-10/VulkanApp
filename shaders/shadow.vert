@@ -7,6 +7,7 @@ layout(set = 0, binding = 1) uniform FrameUbo {
     mat4 proj;
     mat4 lightViewProjMatrix;
     vec4 camPos;
+    float iblIntensity;
     int shadowsEnabled;
 } frameUbo;
 
