@@ -199,8 +199,6 @@ namespace m1
     	std::unique_ptr<Texture> _brdfLUT;
 
 		// Synchronization objects (semaphores for GPU-GPU sync, fences for CPU-GPU sync)
-        std::vector<VkSemaphore> _imageAvailableSems;
         std::vector<VkSemaphore> _drawCmdExecutedSems;
-        VkSemaphore _acquireSemaphore; // only used during acquiring of an image, then swapped into _imageAvailableSems
     };
 }

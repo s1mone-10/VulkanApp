@@ -30,7 +30,7 @@ setlocal enabledelayedexpansion
 set "FAILED=0"
 for /r "shaders" %%F in (*.vert *.frag *.comp) do (
     echo Compiling %%F ...
-    "%GLSLC%" "%%F" -o "shaders\compiled\%%~nF%%~xF.spv"
+    "%GLSLC%" "%%F" --target-env=vulkan1.3 -o "shaders\compiled\%%~nF%%~xF.spv"
     if errorlevel 1 (
         echo.
         echo Error: compilation failed for %%F

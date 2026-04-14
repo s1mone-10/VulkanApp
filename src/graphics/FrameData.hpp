@@ -43,6 +43,7 @@ namespace m1
     	// synchronization objects
     	VkFence drawCmdExecutedFence, computeCmdExecutedFence = VK_NULL_HANDLE;
     	VkSemaphore computeCmdExecutedSem = VK_NULL_HANDLE;
+    	VkSemaphore swapImgAvailSem = VK_NULL_HANDLE;
 
     	// command buffers
     	VkCommandBuffer drawSceneCmdBuffer, computeCmdBuffer = VK_NULL_HANDLE;

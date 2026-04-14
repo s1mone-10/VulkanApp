@@ -64,18 +64,17 @@ namespace m1
 
 		// Command buffers are implicitly destroyed when the command pool is destroyed
 
-		for (size_t i = 0; i < _imageAvailableSems.size(); i++)
+		for (size_t i = 0; i < _drawCmdExecutedSems.size(); i++)
 		{
 			vkDestroySemaphore(_device.getVkDevice(), _drawCmdExecutedSems[i], nullptr);
-			vkDestroySemaphore(_device.getVkDevice(), _imageAvailableSems[i], nullptr);
 		}
-		vkDestroySemaphore(_device.getVkDevice(), _acquireSemaphore, nullptr);
 
 		for (size_t i = 0; i < FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroyFence(_device.getVkDevice(), _framesData[i]->drawCmdExecutedFence, nullptr);
 			vkDestroyFence(_device.getVkDevice(), _framesData[i]->computeCmdExecutedFence, nullptr);
 			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->computeCmdExecutedSem, nullptr);
+			vkDestroySemaphore(_device.getVkDevice(), _framesData[i]->swapImgAvailSem, nullptr);
 		}
 
 		Log::Get().Info("Engine destroyed");
@@ -533,12 +532,7 @@ namespace m1
 
 		// acquire an image from the swap chain (signal the semaphore when the image is ready)
 		uint32_t swapChainImageIndex;
-        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, _acquireSemaphore, VK_NULL_HANDLE, &swapChainImageIndex);
-
-		// Since I don't know the image index in advance, I use a staging semaphore then swapped with the one in the array.
-		VkSemaphore temp = _acquireSemaphore;
-		_acquireSemaphore = _imageAvailableSems[swapChainImageIndex];
-		_imageAvailableSems[swapChainImageIndex] = temp;
+        auto result = vkAcquireNextImageKHR(_device.getVkDevice(), _swapChain->getVkSwapChain(), UINT64_MAX, frameData.swapImgAvailSem, VK_NULL_HANDLE, &swapChainImageIndex);
 
 		// recreate the swap chain if needed
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) // swap chain is no longer compatible with the surface (e.g. window resized)
@@ -561,7 +555,7 @@ namespace m1
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in waitSemaphores
 		std::vector<VkSemaphore> waitSemaphores;
 		std::vector<VkPipelineStageFlags> waitStages;
-		waitSemaphores.push_back(_imageAvailableSems[swapChainImageIndex]);
+		waitSemaphores.push_back(frameData.swapImgAvailSem);
 		waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
 		if (_config.particlesEnabled)
@@ -652,7 +646,6 @@ namespace m1
 		// use separate semaphore per swap chain image (even if the frame count is different)
 		// to synchronize between acquiring and presenting images
 		size_t imageCount = _swapChain->getImageCount();
-		_imageAvailableSems.assign(imageCount, VK_NULL_HANDLE);
 		_drawCmdExecutedSems.assign(imageCount, VK_NULL_HANDLE);
 
 		VkSemaphoreCreateInfo semaphoreInfo{};
@@ -660,11 +653,8 @@ namespace m1
 
 		for (size_t i = 0; i < imageCount; i++)
 		{
-            VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_imageAvailableSems[i]));
             VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_drawCmdExecutedSems[i]));
 		}
-
-		VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &_acquireSemaphore));
 	}
 
 	void Engine::drawObjectsLoop(VkCommandBuffer commandBuffer)
@@ -1411,10 +1401,11 @@ namespace m1
 
 			// create synchronization objects
 			VkFence drawFence, computeFence;
-			VkSemaphore computeSem;
+			VkSemaphore computeSem, imageAvailableSem;
             VK_CHECK(vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &drawFence));
             VK_CHECK(vkCreateFence(_device.getVkDevice(), &fenceInfo, nullptr, &computeFence));
             VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &computeSem));
+			VK_CHECK(vkCreateSemaphore(_device.getVkDevice(), &semaphoreInfo, nullptr, &imageAvailableSem));
 
 			// create the frame data
 			_framesData[i] = std::make_unique<FrameData> (std::move(frameUboBuffer), std::move(objectUboBuffer), descriptorSets[i],
@@ -1425,6 +1416,7 @@ namespace m1
 
 			_framesData[i]->computeCmdExecutedFence = computeFence;
 			_framesData[i]->computeCmdExecutedSem = computeSem;
+			_framesData[i]->swapImgAvailSem = imageAvailableSem;
 			_framesData[i]->computeCmdBuffer = computeCmdBuffers[i];
 		}
 	}
